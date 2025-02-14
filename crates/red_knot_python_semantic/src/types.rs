@@ -1376,13 +1376,13 @@ impl<'db> Type<'db> {
                 .to_instance(db)
                 .static_member(db, name),
 
-            Type::ModuleLiteral(module) => module.member(db, name),
+            Type::ModuleLiteral(module) => module.static_member(db, name),
 
             Type::ClassLiteral(class_ty) => class_ty.member(db, name),
 
-            Type::SubclassOf(subclass_of_ty) => subclass_of_ty.member(db, name),
+            Type::SubclassOf(subclass_of_ty) => subclass_of_ty.static_member(db, name),
 
-            Type::KnownInstance(known_instance) => known_instance.member(db, name),
+            Type::KnownInstance(known_instance) => known_instance.static_member(db, name),
 
             Type::Instance(InstanceType { class }) => match (class.known(db), name) {
                 (Some(KnownClass::VersionInfo), "major") => Symbol::bound(Type::IntLiteral(
@@ -3140,7 +3140,7 @@ impl<'db> KnownInstanceType<'db> {
         }
     }
 
-    fn member(self, db: &'db dyn Db, name: &str) -> Symbol<'db> {
+    fn static_member(self, db: &'db dyn Db, name: &str) -> Symbol<'db> {
         let ty = match (self, name) {
             (Self::TypeVar(typevar), "__name__") => Type::string_literal(db, typevar.name(db)),
             (Self::TypeAliasType(alias), "__name__") => Type::string_literal(db, alias.name(db)),
@@ -3595,7 +3595,7 @@ pub struct ModuleLiteralType<'db> {
 }
 
 impl<'db> ModuleLiteralType<'db> {
-    fn member(self, db: &'db dyn Db, name: &str) -> Symbol<'db> {
+    fn static_member(self, db: &'db dyn Db, name: &str) -> Symbol<'db> {
         // `__dict__` is a very special member that is never overridden by module globals;
         // we should always look it up directly as an attribute on `types.ModuleType`,
         // never in the global scope of the module.
