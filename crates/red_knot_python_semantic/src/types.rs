@@ -1439,33 +1439,21 @@ impl<'db> Type<'db> {
         }
     }
 
+    /// Call the `__get__(instance, owner)` method on a type, if it exists.
     fn try_call_dunder_get(
         &self,
         db: &'db dyn Db,
         instance: Option<Type<'db>>,
         owner: Type<'db>,
-    ) -> Type<'db> {
-        let _span = tracing::info_span!("try_call_dunder_get", ?self, ?instance, ?owner).entered();
-
-        let dunder_get = self.static_member(db, "__get__").ignore_possibly_unbound();
-
-        tracing::info!("__get__ member: {:?}", dunder_get);
-
-        let Some(dunder_get) = dunder_get else {
-            return *self;
-        };
-
-        if let Some(return_ty) = dunder_get
+    ) -> Option<Type<'db>> {
+        // TODO: Handle possible-unboundness and errors from `__get__` calls.
+        self.static_member(db, "__get__")
+            .ignore_possibly_unbound()?
             .call(
                 db,
                 &CallArguments::positional([instance.unwrap_or(Type::none(db)), owner]),
             )
             .return_type(db)
-        {
-            return_ty
-        } else {
-            *self
-        }
     }
 
     /// Resolve a member access of a type.
@@ -1496,7 +1484,7 @@ impl<'db> Type<'db> {
                 let instance = Some(*self);
                 let owner = self.to_meta_type(db);
 
-                member.map_type(|ty| ty.try_call_dunder_get(db, instance, owner))
+                member.map_type(|ty| ty.try_call_dunder_get(db, instance, owner).unwrap_or(ty))
             }
             Type::ClassLiteral(..) => {
                 let member = self.static_member(db, name);
@@ -1504,7 +1492,7 @@ impl<'db> Type<'db> {
                 let instance = None;
                 let owner = self.to_meta_type(db);
 
-                member.map_type(|ty| ty.try_call_dunder_get(db, instance, owner))
+                member.map_type(|ty| ty.try_call_dunder_get(db, instance, owner).unwrap_or(ty))
             }
             Type::Union(union) => union.map_with_boundness(db, |elem| elem.member(db, name)),
             Type::Intersection(..) => Symbol::todo("Attribute access on `Intersection` types"),
@@ -1518,10 +1506,10 @@ impl<'db> Type<'db> {
             // TODO: Some of these should probably moved up to the instances branch
             Type::Dynamic(..)
             | Type::Never
-            | Type::SubclassOf(..)
-            | Type::AlwaysTruthy
             | Type::AlwaysFalsy
-            | Type::ModuleLiteral(..) => self.static_member(db, name),
+            | Type::AlwaysTruthy
+            | Type::ModuleLiteral(..)
+            | Type::SubclassOf(..) => self.static_member(db, name),
         }
     }
 
