@@ -1350,6 +1350,7 @@ impl<'db> Type<'db> {
 
         match self {
             Type::Dynamic(_) => {
+                // TODO:
                 if name == "__get__" {
                     return Symbol::Unbound;
                 }
@@ -1477,8 +1478,8 @@ impl<'db> Type<'db> {
             | Type::SliceLiteral(..)
             | Type::Tuple(..)
             | Type::KnownInstance(..)
-            | Type::FunctionLiteral(_)
-            | Type::Callable(CallableType::FunctionTypeDunderGet(_)) => {
+            | Type::FunctionLiteral(..)
+            | Type::Callable(CallableType::FunctionTypeDunderGet(..)) => {
                 let member = self.static_member(db, name);
 
                 let instance = Some(*self);
@@ -1503,13 +1504,14 @@ impl<'db> Type<'db> {
                 _ => KnownClass::MethodType.to_instance(db).member(db, name),
             },
 
-            // TODO: Some of these should probably moved up to the instances branch
             Type::Dynamic(..)
             | Type::Never
             | Type::AlwaysFalsy
             | Type::AlwaysTruthy
-            | Type::ModuleLiteral(..)
-            | Type::SubclassOf(..) => self.static_member(db, name),
+            | Type::ModuleLiteral(..) => self.static_member(db, name),
+
+            // TODO: We fall back to static member for `type[…]` for now, but this could be improved.
+            Type::SubclassOf(..) => self.static_member(db, name),
         }
     }
 
@@ -1792,6 +1794,26 @@ impl<'db> Type<'db> {
                         if let Some(casted_ty) = arguments.first_argument() {
                             binding.set_return_type(casted_ty);
                         };
+
+                        CallOutcome::callable(binding)
+                    }
+
+                    Some(KnownFunction::GetattrStatic) => {
+                        let Some((instance_ty, attr_name, default)) =
+                            binding.three_parameter_types()
+                        else {
+                            return CallOutcome::callable(binding);
+                        };
+
+                        let Some(attr_name) = attr_name.into_string_literal() else {
+                            return CallOutcome::callable(binding);
+                        };
+
+                        let static_member = instance_ty
+                            .static_member(db, attr_name.value(db))
+                            .ignore_possibly_unbound() // TODO: we could emit a diagnostic here
+                            .unwrap_or(default);
+                        binding.set_return_type(static_member);
 
                         CallOutcome::callable(binding)
                     }
@@ -3379,6 +3401,9 @@ pub enum KnownFunction {
     /// `typing(_extensions).cast`
     Cast,
 
+    /// `inspect.getattr_static`
+    GetattrStatic,
+
     /// `knot_extensions.static_assert`
     StaticAssert,
     /// `knot_extensions.is_equivalent_to`
@@ -3422,6 +3447,7 @@ impl KnownFunction {
             "no_type_check" => Self::NoTypeCheck,
             "assert_type" => Self::AssertType,
             "cast" => Self::Cast,
+            "getattr_static" => Self::GetattrStatic,
             "static_assert" => Self::StaticAssert,
             "is_subtype_of" => Self::IsSubtypeOf,
             "is_disjoint_from" => Self::IsDisjointFrom,
@@ -3450,6 +3476,9 @@ impl KnownFunction {
             Self::Len | Self::Repr => module.is_builtins(),
             Self::AssertType | Self::Cast | Self::RevealType | Self::Final | Self::NoTypeCheck => {
                 matches!(module, KnownModule::Typing | KnownModule::TypingExtensions)
+            }
+            Self::GetattrStatic => {
+                matches!(module, KnownModule::Inspect)
             }
             Self::IsAssignableTo
             | Self::IsDisjointFrom
@@ -3485,6 +3514,7 @@ impl KnownFunction {
             | Self::Final
             | Self::NoTypeCheck
             | Self::RevealType
+            | Self::GetattrStatic
             | Self::StaticAssert => ParameterExpectations::AllValueExpressions,
         }
     }
