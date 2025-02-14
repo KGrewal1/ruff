@@ -1809,6 +1809,12 @@ impl<'db> Type<'db> {
                             return CallOutcome::callable(binding);
                         };
 
+                        let default = if default.is_unknown() {
+                            Type::Never
+                        } else {
+                            default
+                        };
+
                         let static_member = instance_ty
                             .static_member(db, attr_name.value(db))
                             .ignore_possibly_unbound() // TODO: we could emit a diagnostic here
