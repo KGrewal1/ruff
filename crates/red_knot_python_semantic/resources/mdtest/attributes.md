@@ -1003,8 +1003,8 @@ functions are instances of that class:
 ```py
 def f(): ...
 
-reveal_type(f.__defaults__)  # revealed: @Todo(full tuple[...] support) | None
-reveal_type(f.__kwdefaults__)  # revealed: @Todo(generics) | None
+reveal_type(f.__defaults__)  # revealed: @Todo(full tuple[...] support)
+reveal_type(f.__kwdefaults__)  # revealed: @Todo(generics)
 ```
 
 Some attributes are special-cased, however:

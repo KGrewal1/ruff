@@ -1349,14 +1349,7 @@ impl<'db> Type<'db> {
         }
 
         match self {
-            Type::Dynamic(_) => {
-                // TODO:
-                if name == "__get__" {
-                    return Symbol::Unbound;
-                }
-
-                Symbol::bound(self)
-            }
+            Type::Dynamic(_) => Symbol::bound(self),
 
             Type::Never => Symbol::todo("attribute lookup on Never"),
 
@@ -1449,7 +1442,19 @@ impl<'db> Type<'db> {
     ) -> Option<Type<'db>> {
         // TODO: Handle possible-unboundness and errors from `__get__` calls.
         self.static_member(db, "__get__")
-            .ignore_possibly_unbound()?
+            .ignore_possibly_unbound()
+            // We currently filter out `Unknown` here because the fallout would be too large otherwise.
+            // Imagine that we access a class attribute `C.attr`, and the static member lookup of `attr`
+            // returns `Unknown | T` (something we do for all undeclared attributes). Now we do a static
+            // lookup of the `__get__` method on that `Unknown | T` type. For `Unknown`, we get a bound
+            // symbol with type `Unknown` back. If `T` is not a descriptor, we get back that `__get__`
+            // is *unbound* on `T`. We then union `Symbol::bound(Unknown)` and `Symbol::unbound()` into
+            // a possibly-unbound symbol of type `Unknown`. If we would not filter it out here, that
+            // would mean that we would infer `Unknown` for all of these attribute accesses. A better
+            // way to handle this would be to return something like a `Symbol::union` of the two results,
+            // and then to do a `__get__` call on `Unknown`, and to handle `T` as a non-descriptor member,
+            // resulting in `Unknown | T`.
+            .filter(|ty| !ty.is_unknown())?
             .call(
                 db,
                 &CallArguments::positional([instance.unwrap_or(Type::none(db)), owner]),

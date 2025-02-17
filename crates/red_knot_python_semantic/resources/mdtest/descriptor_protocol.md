@@ -22,7 +22,7 @@ class Ten:
         pass
 
 class C:
-    ten = Ten()
+    ten: Ten = Ten()
 
 c = C()
 
@@ -31,10 +31,12 @@ reveal_type(c.ten)  # revealed: Literal[10]
 reveal_type(C.ten)  # revealed: Literal[10]
 
 # These are fine:
-c.ten = 10
+# TODO: This should not be an error
+c.ten = 10  # error: [invalid-assignment]
 C.ten = 10
 
-# TODO: This should be an error
+# TODO: This should be an error, but with a better error message
+# error: [invalid-assignment] "Object of type `Literal[11]` is not assignable to attribute `ten` of type `Ten`"
 c.ten = 11
 
 # TODO: This is not the correct error message
@@ -58,18 +60,21 @@ class FlexibleInt:
         self._value = int(value)
 
 class C:
-    flexible_int = FlexibleInt()
+    flexible_int: FlexibleInt = FlexibleInt()
 
 c = C()
 
 reveal_type(c.flexible_int)  # revealed: int | None
 
+# error: [invalid-assignment]
 c.flexible_int = 42  # okay
+# error: [invalid-assignment]
 c.flexible_int = "42"  # also okay!
 
 reveal_type(c.flexible_int)  # revealed: int | None
 
-# TODO: should be an error
+# TODO: should be an error, but with a better message
+# error: [invalid-assignment] "Object of type `None` is not assignable to attribute `flexible_int` of type `FlexibleInt`"
 c.flexible_int = None  # not okay
 
 reveal_type(c.flexible_int)  # revealed: int | None
@@ -99,8 +104,8 @@ class NonDataDescriptor:
         return "non-data"
 
 class C:
-    data_descriptor = DataDescriptor()
-    non_data_descriptor = NonDataDescriptor()
+    data_descriptor: DataDescriptor = DataDescriptor()
+    non_data_descriptor: NonDataDescriptor = NonDataDescriptor()
 
     def f(self):
         # This explains why data descriptors come first in the precendence chain. If
@@ -213,9 +218,9 @@ class Ten:
 
 class C:
     def __init__(self):
-        self.ten = Ten()
+        self.ten: Ten = Ten()
 
-# TODO: Should be Unknown | Ten
+# TODO: Should be Ten
 reveal_type(C().ten)  # revealed: Literal[10]
 ```
 
@@ -240,13 +245,35 @@ class Descriptor:
             return "called on class object"
 
 class C:
-    d = Descriptor()
+    d: Descriptor = Descriptor()
 
 # TODO: should be `Literal["called on class object"]
 reveal_type(C.d)  # revealed: LiteralString
 
 # TODO: should be `Literal["called on instance"]
 reveal_type(C().d)  # revealed: LiteralString
+```
+
+## Undeclared descriptor arguments
+
+If a descriptor attribute is not declared, we union with `Unknown`, just like for regular
+attributes, since that attribute could be overwritten externally. Even data-descriptors with a
+`__set__` method can be overwritten when accessed through a class object.
+
+```py
+class Descriptor:
+    def __get__(self, instance: object, owner: type | None = None) -> int:
+        return 1
+
+    def __set__(self, instance: object, value: int) -> None:
+        pass
+
+class C:
+    descriptor = Descriptor()
+
+C.descriptor = "something else"
+
+reveal_type(C.descriptor)  # revealed: Unknown | int
 ```
 
 [descriptors]: https://docs.python.org/3/howto/descriptor.html
