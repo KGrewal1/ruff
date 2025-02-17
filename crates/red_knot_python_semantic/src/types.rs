@@ -205,7 +205,7 @@ pub enum Type<'db> {
     Never,
     /// A specific function object
     FunctionLiteral(FunctionType<'db>),
-    /// A method bound to the instance on which it was called
+    /// A callable object
     Callable(CallableType<'db>),
     /// A specific module object
     ModuleLiteral(ModuleLiteralType<'db>),
@@ -3473,8 +3473,11 @@ impl KnownFunction {
     }
 }
 
+/// This type represents bound method objects that are created when a method is called
+/// on an instance of a class. For example, the expression `Path("a.txt").touch` creates
+/// a bound method object that represents the `Path.touch` method which is bound to the
+/// instance `Path("a.txt")`.
 #[salsa::tracked]
-// #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct BoundMethodType<'db> {
     /// The function that is being bound. Corresponds to the `__func__` attribute on a
     /// bound method object
@@ -3484,9 +3487,26 @@ pub struct BoundMethodType<'db> {
     self_instance: Box<Type<'db>>,
 }
 
+/// A type that represents callable objects.
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, salsa::Update)]
 pub enum CallableType<'db> {
+    /// See [`BoundMethodType`] for more information.
+    // TODO: This could eventually be replaced by a more general `Callable` type, if we
+    // decide to bind the first argument of method calls early, i.e. if we have a method
+    // `def f(self, x: int) -> str`, and see it being called as `instance.f`, we could
+    // partially apply (and check) the `instance` argument against the `self` parameter,
+    // and return a `Callable[[int], str]`. One drawback would be that we could not show
+    // the bound instance when that type is displayed.
     BoundMethod(BoundMethodType<'db>),
+
+    /// Represents the callable `f.__get__` where `f` is a function.
+    // TODO: This could eventually be replaced by a more general `Callable` type that is
+    // also able to represent overloads. It would need to represent the two overloads of
+    // `types.FunctionType.__get__`:
+    //
+    //    * (None,   type)          ->   Literal[function_on_which_it_was_called]
+    //    * (object, type | None)   ->   BoundMethod[instance, function_on_which_it_was_called]
+    //
     FunctionTypeDunderGet(FunctionType<'db>),
 }
 
