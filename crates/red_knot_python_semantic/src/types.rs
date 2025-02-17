@@ -1540,24 +1540,16 @@ impl<'db> Type<'db> {
                 .unwrap_or(Truthiness::Ambiguous),
             Type::AlwaysTruthy => Truthiness::AlwaysTrue,
             Type::AlwaysFalsy => Truthiness::AlwaysFalse,
-            instance_ty @ Type::Instance(InstanceType { class }) => {
+            Type::Instance(InstanceType { class }) => {
                 if class.is_known(db, KnownClass::NoneType) {
                     Truthiness::AlwaysFalse
                 } else {
                     // We only check the `__bool__` method for truth testing, even though at
                     // runtime there is a fallback to `__len__`, since `__bool__` takes precedence
-                    // and a subclass could add a `__bool__` method. We don't use
-                    // `Type::call_dunder` here because of the need to check for `__bool__ = bool`.
+                    // and a subclass could add a `__bool__` method.
 
-                    // Don't trust a maybe-unbound `__bool__` method.
-                    let Symbol::Type(bool_method, Boundness::Bound) =
-                        instance_ty.to_meta_type(db).member(db, "__bool__")
-                    else {
-                        return Truthiness::Ambiguous;
-                    };
-
-                    if let Some(Type::BooleanLiteral(bool_val)) = bool_method
-                        .call_bound(db, instance_ty, &CallArguments::positional([]))
+                    if let Some(Type::BooleanLiteral(bool_val)) = self
+                        .call_dunder(db, "__bool__", &CallArguments::positional([]))
                         .return_type(db)
                     {
                         bool_val.into()
@@ -1895,52 +1887,6 @@ impl<'db> Type<'db> {
             Type::Intersection(_) => CallOutcome::callable(CallBinding::from_return_type(
                 todo_type!("Type::Intersection.call()"),
             )),
-
-            _ => CallOutcome::not_callable(self),
-        }
-    }
-
-    /// Return the outcome of calling an class/instance attribute of this type
-    /// using descriptor protocol.
-    ///
-    /// `receiver_ty` must be `Type::Instance(_)` or `Type::ClassLiteral`.
-    ///
-    /// TODO: handle `super()` objects properly
-    #[must_use]
-    fn call_bound(
-        self,
-        db: &'db dyn Db,
-        receiver_ty: &Type<'db>,
-        arguments: &CallArguments<'_, 'db>,
-    ) -> CallOutcome<'db> {
-        debug_assert!(receiver_ty.is_instance() || receiver_ty.is_class_literal());
-
-        match self {
-            Type::FunctionLiteral(..) => {
-                // Functions are always descriptors, so this would effectively call
-                // the function with the instance as the first argument
-                self.call(db, &arguments.with_self(*receiver_ty))
-            }
-
-            Type::Instance(_) | Type::ClassLiteral(_) => {
-                // TODO descriptor protocol. For now, assume non-descriptor and call without `self` argument.
-                self.call(db, arguments)
-            }
-
-            Type::Union(union) => CallOutcome::union(
-                self,
-                union
-                    .elements(db)
-                    .iter()
-                    .map(|elem| elem.call_bound(db, receiver_ty, arguments)),
-            ),
-
-            Type::Intersection(_) => CallOutcome::callable(CallBinding::from_return_type(
-                todo_type!("Type::Intersection.call_bound()"),
-            )),
-
-            // Cases that duplicate, and thus must be kept in sync with, `Type::call()`
-            Type::Dynamic(_) => CallOutcome::callable(CallBinding::from_return_type(self)),
 
             _ => CallOutcome::not_callable(self),
         }
