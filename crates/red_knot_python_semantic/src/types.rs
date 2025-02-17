@@ -1502,7 +1502,7 @@ impl<'db> Type<'db> {
             Type::Intersection(..) => Symbol::todo("Attribute access on `Intersection` types"),
 
             Type::Callable(CallableType::BoundMethod(bound_method)) => match name {
-                "__self__" => Symbol::bound(*bound_method.self_instance(db)),
+                "__self__" => Symbol::bound(bound_method.self_instance(db)),
                 "__func__" => Symbol::bound(Type::FunctionLiteral(bound_method.function(db))),
                 _ => KnownClass::MethodType.to_instance(db).member(db, name),
             },
@@ -1638,7 +1638,7 @@ impl<'db> Type<'db> {
         match self {
             Type::Callable(CallableType::BoundMethod(bound_method)) => {
                 let instance = bound_method.self_instance(db);
-                let arguments = arguments.with_self(*instance);
+                let arguments = arguments.with_self(instance);
 
                 let binding = bind_call(
                     db,
@@ -1652,7 +1652,7 @@ impl<'db> Type<'db> {
                 let return_ty = match arguments.first_argument() {
                     Some(ty) if ty.is_none(db) => Type::FunctionLiteral(function),
                     Some(instance) => Type::Callable(CallableType::BoundMethod(
-                        BoundMethodType::new(db, function, Box::new(instance)),
+                        BoundMethodType::new(db, function, instance),
                     )),
                     _ => Type::unknown(),
                 };
@@ -3484,7 +3484,7 @@ pub struct BoundMethodType<'db> {
     pub(crate) function: FunctionType<'db>,
     /// The instance on which this method has been called. Corresponds to the `__self__`
     /// attribute on a bound method object
-    self_instance: Box<Type<'db>>,
+    self_instance: Type<'db>,
 }
 
 /// A type that represents callable objects.
