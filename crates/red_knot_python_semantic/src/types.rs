@@ -1342,8 +1342,6 @@ impl<'db> Type<'db> {
     }
 
     fn static_member(&self, db: &'db dyn Db, name: &str) -> Symbol<'db> {
-        let _span = tracing::info_span!("static_member", ?self, name).entered();
-
         if name == "__class__" {
             return Symbol::bound(self.to_meta_type(db));
         }
@@ -1637,8 +1635,6 @@ impl<'db> Type<'db> {
     /// Return the outcome of calling an object of this type.
     #[must_use]
     fn call(self, db: &'db dyn Db, arguments: &CallArguments<'_, 'db>) -> CallOutcome<'db> {
-        let _span = tracing::info_span!("call", ?self, ?arguments).entered();
-
         match self {
             Type::Callable(CallableType::BoundMethod(bound_method)) => {
                 let instance = bound_method.self_instance(db);
@@ -3907,8 +3903,6 @@ impl<'db> Class<'db> {
     ///
     /// The member resolves to a member on the class itself or any of its proper superclasses.
     pub(crate) fn class_member(self, db: &'db dyn Db, name: &str) -> Symbol<'db> {
-        let _span = tracing::info_span!("class_member", ?self, name).entered();
-
         if name == "__mro__" {
             let tuple_elements = self.iter_mro(db).map(Type::from);
             return Symbol::bound(TupleType::from_elements(db, tuple_elements));
@@ -3961,8 +3955,6 @@ impl<'db> Class<'db> {
     /// directly. Use [`Class::class_member`] if you require a method that will
     /// traverse through the MRO until it finds the member.
     pub(crate) fn own_class_member(self, db: &'db dyn Db, name: &str) -> Symbol<'db> {
-        let _span = tracing::info_span!("own_class_member", ?self, name).entered();
-
         let scope = self.body_scope(db);
         symbol(db, scope, name)
     }
