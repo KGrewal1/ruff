@@ -1,7 +1,9 @@
 # `inspect.getattr_static`
 
-`inspect.getattr_static` is a function that returns the value of an attribute of an object, without
-invoking the descriptor protocol (for caveats, see the [official documentation]).
+`inspect.getattr_static` is a function that returns attributes of an object without invoking the
+descriptor protocol (for caveats, see the [official documentation]).
+
+Consider the following example:
 
 ```py
 import inspect
@@ -13,12 +15,21 @@ class Descriptor:
 class C:
     normal: int = 1
     descriptor: Descriptor = Descriptor()
+```
 
+If we access attributes on an instance of `C` as usual, the descriptor protocol is invoked, and we
+get a type of `str` for the `descriptor` attribute:
+
+```py
 c = C()
 
 reveal_type(c.normal)  # revealed: int
 reveal_type(c.descriptor)  # revealed: str
+```
 
+However, if we use `inspect.getattr_static`, we can see the underlying `Descriptor` type:
+
+```py
 reveal_type(inspect.getattr_static(c, "normal"))  # revealed: int
 reveal_type(inspect.getattr_static(c, "descriptor"))  # revealed: Descriptor
 ```
@@ -38,7 +49,7 @@ When a non-existent attribute is accessed without a default value, the runtime r
 reveal_type(inspect.getattr_static(C, "non_existent"))  # revealed: Never
 ```
 
-Attributes of objects of all kind can be accessed:
+We can access attributes on objects of all kinds:
 
 ```py
 import sys
