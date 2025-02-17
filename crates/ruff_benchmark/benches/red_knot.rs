@@ -69,13 +69,6 @@ static EXPECTED_DIAGNOSTICS: &[KeyDiagnosticFields] = &[
     ),
     // We don't handle intersections in `is_assignable_to` yet
     (
-        DiagnosticId::lint("unresolved-attribute"),
-        Some("/src/tomllib/_parser.py"),
-        Some(1788..1795),
-        Cow::Borrowed("Type `BinaryIO` has no attribute `read`"),
-        Severity::Error,
-    ),
-    (
         DiagnosticId::lint("invalid-argument-type"),
         Some("/src/tomllib/_parser.py"),
         Some(7642..7645),

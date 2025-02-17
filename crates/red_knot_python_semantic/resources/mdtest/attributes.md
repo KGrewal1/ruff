@@ -1141,6 +1141,42 @@ class C:
 reveal_type(C().x)  # revealed: Unknown
 ```
 
+### Builtin types attributes
+
+This test can probably be removed eventually, but we currently include it because we do not yet
+understand generic bases and protocols, and we want to make sure that we can still use builtin types
+in our tests in the meantime. See the corresponding TODO in `Type::static_member` for more
+information.
+
+```py
+class C:
+    a_int: int = 1
+    a_str: str = "a"
+    a_bytes: bytes = b"a"
+    a_bool: bool = True
+    a_float: float = 1.0
+    a_complex: complex = 1 + 1j
+    a_tuple: tuple[int] = (1,)
+    a_range: range = range(1)
+    a_slice: slice = slice(1)
+    a_memoryview: memoryview = memoryview(b"a")
+    a_type: type = int
+    a_none: None = None
+
+reveal_type(C.a_int)  # revealed: int
+reveal_type(C.a_str)  # revealed: str
+reveal_type(C.a_bytes)  # revealed: bytes
+reveal_type(C.a_bool)  # revealed: bool
+reveal_type(C.a_float)  # revealed: int | float
+reveal_type(C.a_complex)  # revealed: int | float | complex
+reveal_type(C.a_tuple)  # revealed: tuple[int]
+reveal_type(C.a_range)  # revealed: range
+reveal_type(C.a_slice)  # revealed: slice
+reveal_type(C.a_memoryview)  # revealed: memoryview
+reveal_type(C.a_type)  # revealed: type
+reveal_type(C.a_none)  # revealed: None
+```
+
 ## References
 
 Some of the tests in the *Class and instance variables* section draw inspiration from

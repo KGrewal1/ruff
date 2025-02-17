@@ -1311,6 +1311,8 @@ impl<'db> Type<'db> {
                     | KnownClass::FrozenSet
                     | KnownClass::Dict
                     | KnownClass::Slice
+                    | KnownClass::Range
+                    | KnownClass::MemoryView
                     | KnownClass::Property
                     | KnownClass::BaseException
                     | KnownClass::BaseExceptionGroup
@@ -1383,6 +1385,27 @@ impl<'db> Type<'db> {
                 (Some(KnownClass::VersionInfo), "minor") => Symbol::bound(Type::IntLiteral(
                     Program::get(db).python_version(db).minor.into(),
                 )),
+
+                // TODO:
+                // We currently hard-code the knowledge that the following known classes are not
+                // descriptors, i.e. that they have no `__get__` method. This is not wrong and
+                // potentially even beneficial for performance, but it's not very principled.
+                // This case can probably be removed eventually, but we include it at the moment
+                // because we make extensive use of these types in our test suite. Note that some
+                // builtin types are not included here, since they do not have generic bases and
+                // are correctly handled by the `instance_member` method.
+                (
+                    Some(
+                        KnownClass::Str
+                        | KnownClass::Bytes
+                        | KnownClass::Tuple
+                        | KnownClass::Slice
+                        | KnownClass::Range
+                        | KnownClass::MemoryView,
+                    ),
+                    "__get__",
+                ) => Symbol::Unbound,
+
                 _ => {
                     let SymbolAndQualifiers(symbol, _) = class.instance_member(db, name);
                     symbol
@@ -2426,6 +2449,8 @@ pub enum KnownClass {
     FrozenSet,
     Dict,
     Slice,
+    Range,
+    MemoryView,
     Property,
     BaseException,
     BaseExceptionGroup,
@@ -2477,6 +2502,8 @@ impl<'db> KnownClass {
             Self::List => "list",
             Self::Type => "type",
             Self::Slice => "slice",
+            Self::Range => "range",
+            Self::MemoryView => "memoryview",
             Self::Property => "property",
             Self::BaseException => "BaseException",
             Self::BaseExceptionGroup => "BaseExceptionGroup",
@@ -2560,6 +2587,8 @@ impl<'db> KnownClass {
             | Self::BaseException
             | Self::BaseExceptionGroup
             | Self::Slice
+            | Self::Range
+            | Self::MemoryView
             | Self::Property => KnownModule::Builtins,
             Self::VersionInfo => KnownModule::Sys,
             Self::GenericAlias
@@ -2626,6 +2655,8 @@ impl<'db> KnownClass {
             | Self::List
             | Self::Type
             | Self::Slice
+            | Self::Range
+            | Self::MemoryView
             | Self::Property
             | Self::GenericAlias
             | Self::ModuleType
@@ -2664,6 +2695,8 @@ impl<'db> KnownClass {
             "dict" => Self::Dict,
             "list" => Self::List,
             "slice" => Self::Slice,
+            "range" => Self::Range,
+            "memoryview" => Self::MemoryView,
             "BaseException" => Self::BaseException,
             "BaseExceptionGroup" => Self::BaseExceptionGroup,
             "GenericAlias" => Self::GenericAlias,
@@ -2713,6 +2746,8 @@ impl<'db> KnownClass {
             | Self::FrozenSet
             | Self::Dict
             | Self::Slice
+            | Self::Range
+            | Self::MemoryView
             | Self::Property
             | Self::GenericAlias
             | Self::ChainMap
@@ -3989,10 +4024,9 @@ impl<'db> Class<'db> {
         for superclass in self.iter_mro(db) {
             match superclass {
                 ClassBase::Dynamic(_) => {
-                    return SymbolAndQualifiers(Symbol::Unbound, TypeQualifiers::empty());
-                    // return SymbolAndQualifiers::todo(
-                    //     "instance attribute on class with dynamic base",
-                    // );
+                    return SymbolAndQualifiers::todo(
+                        "instance attribute on class with dynamic base",
+                    );
                 }
                 ClassBase::Class(class) => {
                     if let member @ SymbolAndQualifiers(Symbol::Type(_, _), _) =

@@ -41,8 +41,7 @@ reveal_type(secure_box)  # revealed: MySecureBox
 # TODO reveal int
 # The @Todo(…) is misleading here. We currently treat `MyBox[T]` as a dynamic base class because we
 # don't understand generics and therefore infer `Unknown` for the `MyBox[T]` base of `MySecureBox[T]`.
-# error: [unresolved-attribute]
-reveal_type(secure_box.data)  # revealed: Unknown
+reveal_type(secure_box.data)  # revealed: @Todo(instance attribute on class with dynamic base)
 ```
 
 ## Cyclical class definition
