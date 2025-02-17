@@ -35,7 +35,7 @@ When a non-existent attribute is accessed without a default value, the runtime r
 
 ```py
 # TODO: we could emit a diagnostic here
-reveal_type(inspect.getattr_static(C, "non_existent"))  # revealed: Unknown
+reveal_type(inspect.getattr_static(C, "non_existent"))  # revealed: Never
 ```
 
 Attributes of objects of all kind can be accessed:

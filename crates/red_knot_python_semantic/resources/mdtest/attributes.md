@@ -843,11 +843,17 @@ from this that attribute access on `Any` resolves to `Any` if the attribute does
 
 ```py
 from typing import Any
+from inspect import getattr_static
 
 class Foo(Any): ...
 
 reveal_type(Foo.bar)  # revealed: Any
-reveal_type(Foo.__repr__)  # revealed: Literal[__repr__] & Any
+
+reveal_type(getattr_static(Foo, "__repr__"))  # revealed: Literal[__repr__] & Any
+
+# TODO: This attribute access requires support for intersection types, since we try to access
+# `__get__` on `Literal[__repr__] & Any` (see above).
+reveal_type(Foo.__repr__)  # revealed: @Todo(Attribute access on `Intersection` types)
 ```
 
 Similar principles apply if `Any` appears in the middle of an inheritance hierarchy:
@@ -862,7 +868,9 @@ class B(Any): ...
 class C(B, A): ...
 
 reveal_type(C.__mro__)  # revealed: tuple[Literal[C], Literal[B], Any, Literal[A], Literal[object]]
-reveal_type(C.x)  # revealed: Literal[1] & Any
+
+reveal_type(getattr_static(C, "x"))  # revealed: Literal[1] & Any
+reveal_type(C.x)  # revealed: @Todo(Attribute access on `Intersection` types)
 ```
 
 ### Unions with all paths unbound
