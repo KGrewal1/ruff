@@ -89,7 +89,7 @@ impl Display for DisplayRepresentation<'_> {
             Type::KnownInstance(known_instance) => f.write_str(known_instance.repr(self.db)),
             Type::FunctionLiteral(function) => f.write_str(function.name(self.db)),
             Type::Callable(CallableType::BoundMethod(bound_method)) => {
-                f.write_str("<bound method: `")?;
+                f.write_str("<bound method `")?;
                 f.write_str(bound_method.function(self.db).name(self.db))?;
                 f.write_str("` of `")?;
                 bound_method
@@ -99,7 +99,7 @@ impl Display for DisplayRepresentation<'_> {
                 f.write_str("`>")
             }
             Type::Callable(CallableType::FunctionTypeDunderGet(function)) => {
-                f.write_str("<method-wrapper: `")?;
+                f.write_str("<method-wrapper `__get__` of `")?;
                 f.write_str(function.name(self.db))?;
                 f.write_str("`>")
             }

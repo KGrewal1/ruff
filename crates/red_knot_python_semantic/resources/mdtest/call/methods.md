@@ -33,7 +33,7 @@ However, if the `instance` attribute is not `None`, the `__get__` method returns
 object:
 
 ```py
-reveal_type(C().f)  # revealed: <bound method: `f` of `C`>
+reveal_type(C().f)  # revealed: <bound method `f` of `C`>
 ```
 
 A bound method is a callable object that contains a reference to the `instance` that it was called
@@ -68,13 +68,13 @@ When we access methods from derived classes, they will be bound to instances of 
 class D(C):
     pass
 
-reveal_type(D().f)  # revealed: <bound method: `f` of `D`>
+reveal_type(D().f)  # revealed: <bound method `f` of `D`>
 ```
 
 If we access an attribute on a bound method object itself, it will defer to `types.MethodType`:
 
 ```py
-reveal_type(bound_method.__hash__)  # revealed: <bound method: `__hash__` of `MethodType`>
+reveal_type(bound_method.__hash__)  # revealed: <bound method `__hash__` of `MethodType`>
 ```
 
 ## Method calls on literals
@@ -137,10 +137,10 @@ class B:
         return "a"
 
 def f(a_or_b: A | B, any_or_a: Any | A):
-    reveal_type(a_or_b.f)  # revealed: <bound method: `f` of `A`> | <bound method: `f` of `B`>
+    reveal_type(a_or_b.f)  # revealed: <bound method `f` of `A`> | <bound method `f` of `B`>
     reveal_type(a_or_b.f())  # revealed: int | str
 
-    reveal_type(any_or_a.f)  # revealed: Any | <bound method: `f` of `A`>
+    reveal_type(any_or_a.f)  # revealed: Any | <bound method `f` of `A`>
     reveal_type(any_or_a.f())  # revealed: Any | int
 ```
 
@@ -154,7 +154,7 @@ python-version = "3.12"
 ```py
 type IntOrStr = int | str
 
-reveal_type(IntOrStr.__or__)  # revealed: <bound method: `__or__` of `typing.TypeAliasType`>
+reveal_type(IntOrStr.__or__)  # revealed: <bound method `__or__` of `typing.TypeAliasType`>
 ```
 
 ## `__get__` on normal functions
@@ -163,7 +163,7 @@ reveal_type(IntOrStr.__or__)  # revealed: <bound method: `__or__` of `typing.Typ
 def f(x: int) -> str:
     return "a"
 
-reveal_type(f.__get__)  # revealed: <method-wrapper: `f`>
+reveal_type(f.__get__)  # revealed: <method-wrapper `__get__` of `f`>
 reveal_type(f.__get__(None, f))  # revealed: Literal[f]
 reveal_type(f.__get__(None, f)(1))  # revealed: str
 
