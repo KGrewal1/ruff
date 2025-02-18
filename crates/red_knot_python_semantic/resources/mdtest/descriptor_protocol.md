@@ -35,11 +35,11 @@ reveal_type(C.ten)  # revealed: Literal[10]
 c.ten = 10  # error: [invalid-assignment]
 C.ten = 10
 
-# TODO: This should be an error, but with a better error message
+# TODO: This should be an error, but the message needs to be improved.
 # error: [invalid-assignment] "Object of type `Literal[11]` is not assignable to attribute `ten` of type `Ten`"
 c.ten = 11
 
-# TODO: This is not the correct error message
+# TODO: This should be an error, but the message needs to be improved.
 # error: [invalid-assignment] "Object of type `Literal[11]` is not assignable to attribute `ten` of type `Literal[10]`"
 C.ten = 11
 ```
@@ -66,6 +66,7 @@ c = C()
 
 reveal_type(c.flexible_int)  # revealed: int | None
 
+# TODO: These should not be errors
 # error: [invalid-assignment]
 c.flexible_int = 42  # okay
 # error: [invalid-assignment]
@@ -73,7 +74,7 @@ c.flexible_int = "42"  # also okay!
 
 reveal_type(c.flexible_int)  # revealed: int | None
 
-# TODO: should be an error, but with a better message
+# TODO: This should be an error, but the message needs to be improved.
 # error: [invalid-assignment] "Object of type `None` is not assignable to attribute `flexible_int` of type `FlexibleInt`"
 c.flexible_int = None  # not okay
 
@@ -96,7 +97,7 @@ class DataDescriptor:
     def __get__(self, instance: object, owner: type | None = None) -> Literal["data"]:
         return "data"
 
-    def __set__(self, instance: object, value) -> None:
+    def __set__(self, instance: int, value) -> None:
         pass
 
 class NonDataDescriptor:
@@ -104,8 +105,8 @@ class NonDataDescriptor:
         return "non-data"
 
 class C:
-    data_descriptor: DataDescriptor = DataDescriptor()
-    non_data_descriptor: NonDataDescriptor = NonDataDescriptor()
+    data_descriptor = DataDescriptor()
+    non_data_descriptor = NonDataDescriptor()
 
     def f(self):
         # This explains why data descriptors come first in the precendence chain. If
@@ -120,19 +121,24 @@ class C:
 
 c = C()
 
-reveal_type(c.data_descriptor)  # revealed: Literal["data"]
+reveal_type(c.data_descriptor)  # revealed: Unknown | Literal["data"]
 
-# TODO: This should ideally be `Literal["non-data", 1]`.
+# TODO: This should ideally be `Unknown | Literal["non-data", 1]`.
 #
 #     - Mypy does not support this either and only shows `Literal['non-data']`
 #     - Pyright shows `int | Literal['non-data']` here, but also wrongly shows the
 #       same for all other three cases.
 #
-reveal_type(c.non_data_descriptor)  # revealed: Literal["non-data"]
+reveal_type(c.non_data_descriptor)  # revealed: Unknown | Literal["non-data"]
 
-reveal_type(C.data_descriptor)  # revealed: Literal["data"]
+reveal_type(C.data_descriptor)  # revealed: Unknown | Literal["data"]
 
-reveal_type(C.non_data_descriptor)  # revealed: Literal["non-data"]
+reveal_type(C.non_data_descriptor)  # revealed: Unknown | Literal["non-data"]
+
+# It is possible to override data descriptors via class objects. The following
+# assignment does not call `DataDescriptor.__set__`. For this reason, we infer
+# `Unknown | …` for all (descriptor) attributes.
+C.data_descriptor = "something else"  # This is okay
 ```
 
 ## Built-in `property` descriptor
