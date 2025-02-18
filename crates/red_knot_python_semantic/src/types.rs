@@ -4194,7 +4194,6 @@ impl<'db> Class<'db> {
         // - `typing.Final`
         // - Proper diagnostics
         // - Handling of possibly-undeclared/possibly-unbound attributes
-        // - The descriptor protocol
 
         let body_scope = self.body_scope(db);
         let table = symbol_table(db, body_scope);

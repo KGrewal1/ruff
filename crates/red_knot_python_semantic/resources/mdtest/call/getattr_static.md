@@ -60,4 +60,14 @@ reveal_type(inspect.getattr_static(inspect, "getattr_static"))  # revealed: Lite
 reveal_type(inspect.getattr_static(1, "real"))  # revealed: Literal[1]
 ```
 
+(Implicit) instance attributes can also be accessed through `inspect.getattr_static`:
+
+```py
+class D:
+    def __init__(self) -> None:
+        self.instance_attr: int = 1
+
+reveal_type(inspect.getattr_static(D(), "instance_attr"))  # revealed: int
+```
+
 [official documentation]: https://docs.python.org/3/library/inspect.html#inspect.getattr_static
