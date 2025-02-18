@@ -1350,6 +1350,11 @@ impl<'db> Type<'db> {
         }
     }
 
+    /// Access an attribute of this type without invoking the descriptor protocol. This
+    /// method corresponds to `inspect.getattr_static(<object of type 'self'>, name)`.
+    ///
+    /// See also: [`Type::member`]
+    #[must_use]
     fn static_member(&self, db: &'db dyn Db, name: &str) -> Symbol<'db> {
         if name == "__class__" {
             return Symbol::bound(self.to_meta_type(db));
@@ -1495,11 +1500,10 @@ impl<'db> Type<'db> {
             .return_type(db)
     }
 
-    /// Resolve a member access of a type.
+    /// Access an attribute of this type, potentially invoking the descriptor protocol.
+    /// Corresponds to `getattr(<object of type 'self'>, name)`.
     ///
-    /// For example, if `foo` is `Type::Instance(<Bar>)`,
-    /// `foo.member(&db, "baz")` returns the type of `baz` attributes
-    /// as accessed from instances of the `Bar` class.
+    /// See also: [`Type::static_member`]
     #[must_use]
     pub(crate) fn member(&self, db: &'db dyn Db, name: &str) -> Symbol<'db> {
         if name == "__class__" {

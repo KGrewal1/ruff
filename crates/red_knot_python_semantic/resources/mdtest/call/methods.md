@@ -19,25 +19,23 @@ passed value for the `instance` argument depends on whether the attribute is acc
 object (in which case it is `None`), or from an instance (in which case it is the instance of type
 `C`). The `owner` argument is the class itself (`C` of type `Literal[C]`). To summarize:
 
-- `C.f` is equivalent to `C.__dict__["f"].__get__(None, C)`
-- `C().f` is equivalent to `C.__dict__["f"].__get__(C(), C)`
+- `C.f` is equivalent to `getattr_static(C, "f").__get__(None, C)`
+- `C().f` is equivalent to `getattr_static(C, "f").__get__(C(), C)`
 
-The way the special `__get__` method *on functions* works like is as follows. In the former case, if
-the `instance` attribute is `None`, it simply returns the function itself. In the latter case, it
-returns a *bound method* object. We can observe this by using `inspect.getattr_static`, which
-circumvents the descriptor protocol and directly accesses the `C.f` attribute:
+Here, `inspect.getattr_static` is used to bypass the descriptor protocol and directly access the
+function attribute. The way the special `__get__` method *on functions* works like is as follows. In
+the former case, if the `instance` attribute is `None`, it simply returns the function itself. In
+the latter case, it returns a *bound method* object:
 
 ```py
 from inspect import getattr_static
 
-C_dict_f = getattr_static(C, "f")
-reveal_type(C_dict_f)  # revealed: Literal[f]
+reveal_type(getattr_static(C, "f"))  # revealed: Literal[f]
 
-C_dict_f_dunder_get = C_dict_f.__get__
-reveal_type(C_dict_f_dunder_get)  # revealed: <method-wrapper `__get__` of `f`>
+reveal_type(getattr_static(C, "f").__get__)  # revealed: <method-wrapper `__get__` of `f`>
 
-reveal_type(C_dict_f_dunder_get(None, C))  # revealed: Literal[f]
-reveal_type(C_dict_f_dunder_get(C(), C))  # revealed: <bound method `f` of `C`>
+reveal_type(getattr_static(C, "f").__get__(None, C))  # revealed: Literal[f]
+reveal_type(getattr_static(C, "f").__get__(C(), C))  # revealed: <bound method `f` of `C`>
 ```
 
 In conclusion, this is why we see the following two types when accessing the `f` attribute on the
