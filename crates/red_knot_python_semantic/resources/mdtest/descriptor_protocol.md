@@ -276,5 +276,32 @@ C.descriptor = "something else"
 reveal_type(C.descriptor)  # revealed: Unknown | int
 ```
 
+## Functions as descriptors
+
+Functions are descriptors because they implement a `__get__` method. This is crucial in making sure
+that method calls work as expected. See [this test suite](./call/methods.md) for more information.
+Here, we only demonstrate how `__get__` works on functions:
+
+```py
+from inspect import getattr_static
+
+def f(x: int) -> str:
+    return "a"
+
+reveal_type(f)  # revealed: Literal[f]
+reveal_type(f.__get__)  # revealed: <method-wrapper `__get__` of `f`>
+reveal_type(f.__get__(None, f))  # revealed: Literal[f]
+reveal_type(f.__get__(None, f)(1))  # revealed: str
+
+reveal_type(getattr_static(f, "__get__"))  # revealed: <wrapper-descriptor `__get__` of `function` objects>
+reveal_type(getattr_static(f, "__get__")(f, None, type(f)))  # revealed: Literal[f]
+
+# Attribute access on the method-wrapper `f.__get__` falls back to `MethodWrapperType`:
+reveal_type(f.__get__.__hash__)  # revealed: <bound method `__hash__` of `MethodWrapperType`>
+
+# Attribute access on the wrapper-descriptor `getattr_static(f, "__get__")` falls back to `WrapperDescriptorType`:
+reveal_type(getattr_static(f, "__get__").__qualname__)  # revealed: @Todo(@property)
+```
+
 [descriptors]: https://docs.python.org/3/howto/descriptor.html
 [simple example]: https://docs.python.org/3/howto/descriptor.html#simple-example-a-descriptor-that-returns-a-constant

@@ -64,11 +64,18 @@ pub(super) fn union_elements_ordering<'db>(left: &Type<'db>, right: &Type<'db>) 
         (_, Type::Callable(CallableType::BoundMethod(_))) => Ordering::Greater,
 
         (
-            Type::Callable(CallableType::FunctionTypeDunderGet(left)),
-            Type::Callable(CallableType::FunctionTypeDunderGet(right)),
+            Type::Callable(CallableType::MethodWrapperDunderGet(left)),
+            Type::Callable(CallableType::MethodWrapperDunderGet(right)),
         ) => left.cmp(right),
-        (Type::Callable(CallableType::FunctionTypeDunderGet(_)), _) => Ordering::Less,
-        (_, Type::Callable(CallableType::FunctionTypeDunderGet(_))) => Ordering::Greater,
+        (Type::Callable(CallableType::MethodWrapperDunderGet(_)), _) => Ordering::Less,
+        (_, Type::Callable(CallableType::MethodWrapperDunderGet(_))) => Ordering::Greater,
+
+        (
+            Type::Callable(CallableType::WrapperDescriptorDunderGet),
+            Type::Callable(CallableType::WrapperDescriptorDunderGet),
+        ) => Ordering::Equal,
+        (Type::Callable(CallableType::WrapperDescriptorDunderGet), _) => Ordering::Less,
+        (_, Type::Callable(CallableType::WrapperDescriptorDunderGet)) => Ordering::Greater,
 
         (Type::Tuple(left), Type::Tuple(right)) => left.cmp(right),
         (Type::Tuple(_), _) => Ordering::Less,

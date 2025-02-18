@@ -7,7 +7,7 @@ Say we have a simple class `C` with a function definition `f` inside its body:
 ```py
 class C:
     def f(self, x: int) -> str:
-        return 1
+        return "a"
 ```
 
 Whenever we access the `f` attribute through the class object itself (`C.f`) or through an instance
@@ -23,16 +23,28 @@ object (in which case it is `None`), or from an instance (in which case it is th
 - `C().f` is equivalent to `C.__dict__["f"].__get__(C(), C)`
 
 The way the special `__get__` method *on functions* works like is as follows. In the former case, if
-the `instance` attribute is `None`, it simply returns the function itself:
+the `instance` attribute is `None`, it simply returns the function itself. In the latter case, it
+returns a *bound method* object. We can observe this by using `inspect.getattr_static`, which
+circumvents the descriptor protocol and directly accesses the `C.f` attribute:
+
+```py
+from inspect import getattr_static
+
+C_dict_f = getattr_static(C, "f")
+reveal_type(C_dict_f)  # revealed: Literal[f]
+
+C_dict_f_dunder_get = C_dict_f.__get__
+reveal_type(C_dict_f_dunder_get)  # revealed: <method-wrapper `__get__` of `f`>
+
+reveal_type(C_dict_f_dunder_get(None, C))  # revealed: Literal[f]
+reveal_type(C_dict_f_dunder_get(C(), C))  # revealed: <bound method `f` of `C`>
+```
+
+In conclusion, this is why we see the following two types when accessing the `f` attribute on the
+class object `C` and on an instance `C()`:
 
 ```py
 reveal_type(C.f)  # revealed: Literal[f]
-```
-
-However, if the `instance` attribute is not `None`, the `__get__` method returns a *bound method*
-object:
-
-```py
 reveal_type(C().f)  # revealed: <bound method `f` of `C`>
 ```
 
@@ -155,18 +167,4 @@ python-version = "3.12"
 type IntOrStr = int | str
 
 reveal_type(IntOrStr.__or__)  # revealed: <bound method `__or__` of `typing.TypeAliasType`>
-```
-
-## `__get__` on normal functions
-
-```py
-def f(x: int) -> str:
-    return "a"
-
-reveal_type(f.__get__)  # revealed: <method-wrapper `__get__` of `f`>
-reveal_type(f.__get__(None, f))  # revealed: Literal[f]
-reveal_type(f.__get__(None, f)(1))  # revealed: str
-
-# Fallback to MethodWrapperType
-reveal_type(f.__get__.__hash__())  # revealed: int
 ```

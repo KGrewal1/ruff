@@ -98,10 +98,13 @@ impl Display for DisplayRepresentation<'_> {
                     .fmt(f)?;
                 f.write_str("`>")
             }
-            Type::Callable(CallableType::FunctionTypeDunderGet(function)) => {
+            Type::Callable(CallableType::MethodWrapperDunderGet(function)) => {
                 f.write_str("<method-wrapper `__get__` of `")?;
                 f.write_str(function.name(self.db))?;
                 f.write_str("`>")
+            }
+            Type::Callable(CallableType::WrapperDescriptorDunderGet) => {
+                f.write_str("<wrapper-descriptor `__get__` of `function` objects>")
             }
             Type::Union(union) => union.display(self.db).fmt(f),
             Type::Intersection(intersection) => intersection.display(self.db).fmt(f),

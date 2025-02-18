@@ -626,8 +626,14 @@ impl<'db> Type<'db> {
                 .to_instance(db)
                 .is_subtype_of(db, target),
 
-            (Type::Callable(CallableType::FunctionTypeDunderGet(_)), _) => {
-                KnownClass::MethodWrapperType
+            (Type::Callable(CallableType::MethodWrapperDunderGet(_)), _) => {
+                KnownClass::WrapperDescriptorType
+                    .to_instance(db)
+                    .is_subtype_of(db, target)
+            }
+
+            (Type::Callable(CallableType::WrapperDescriptorDunderGet), _) => {
+                KnownClass::WrapperDescriptorType
                     .to_instance(db)
                     .is_subtype_of(db, target)
             }
@@ -1321,6 +1327,7 @@ impl<'db> Type<'db> {
                     | KnownClass::FunctionType
                     | KnownClass::MethodType
                     | KnownClass::MethodWrapperType
+                    | KnownClass::WrapperDescriptorType
                     | KnownClass::SpecialForm
                     | KnownClass::ChainMap
                     | KnownClass::Counter
@@ -1353,26 +1360,27 @@ impl<'db> Type<'db> {
 
             Type::Never => Symbol::todo("attribute lookup on Never"),
 
-            Type::FunctionLiteral(function) => match name {
-                "__get__" => Symbol::bound(Type::Callable(CallableType::FunctionTypeDunderGet(
-                    *function,
-                ))),
-                _ => KnownClass::FunctionType
-                    .to_instance(db)
-                    .static_member(db, name),
-            },
-
-            Type::Callable(CallableType::FunctionTypeDunderGet(_)) => KnownClass::MethodWrapperType
+            Type::FunctionLiteral(_) => KnownClass::FunctionType
                 .to_instance(db)
                 .static_member(db, name),
 
             Type::Callable(CallableType::BoundMethod(_)) => KnownClass::MethodType
                 .to_instance(db)
                 .static_member(db, name),
+            Type::Callable(CallableType::MethodWrapperDunderGet(_)) => {
+                KnownClass::MethodWrapperType
+                    .to_instance(db)
+                    .static_member(db, name)
+            }
+            Type::Callable(CallableType::WrapperDescriptorDunderGet) => {
+                KnownClass::WrapperDescriptorType
+                    .to_instance(db)
+                    .static_member(db, name)
+            }
 
             Type::ModuleLiteral(module) => module.static_member(db, name),
 
-            Type::ClassLiteral(class_ty) => class_ty.member(db, name),
+            Type::ClassLiteral(class_ty) => class_ty.static_member(db, name),
 
             Type::SubclassOf(subclass_of_ty) => subclass_of_ty.static_member(db, name),
 
@@ -1385,6 +1393,9 @@ impl<'db> Type<'db> {
                 (Some(KnownClass::VersionInfo), "minor") => Symbol::bound(Type::IntLiteral(
                     Program::get(db).python_version(db).minor.into(),
                 )),
+                (Some(KnownClass::FunctionType), "__get__") => {
+                    Symbol::bound(Type::Callable(CallableType::WrapperDescriptorDunderGet))
+                }
 
                 // TODO:
                 // We currently hard-code the knowledge that the following known classes are not
@@ -1462,8 +1473,9 @@ impl<'db> Type<'db> {
         owner: Type<'db>,
     ) -> Option<Type<'db>> {
         // TODO: Handle possible-unboundness and errors from `__get__` calls.
-        self.static_member(db, "__get__")
+        self.member(db, "__get__")
             .ignore_possibly_unbound()
+            // TODO:
             // We currently filter out `Unknown` here because the fallout would be too large otherwise.
             // Imagine that we access a class attribute `C.attr`, and the static member lookup of `attr`
             // returns `Unknown | T` (something we do for all undeclared attributes). Now we do a static
@@ -1495,6 +1507,26 @@ impl<'db> Type<'db> {
         }
 
         match self {
+            Type::FunctionLiteral(function) if name == "__get__" => Symbol::bound(Type::Callable(
+                CallableType::MethodWrapperDunderGet(*function),
+            )),
+
+            Type::Callable(CallableType::BoundMethod(bound_method)) => match name {
+                "__self__" => Symbol::bound(bound_method.self_instance(db)),
+                "__func__" => Symbol::bound(Type::FunctionLiteral(bound_method.function(db))),
+                _ => KnownClass::MethodType.to_instance(db).member(db, name),
+            },
+            Type::Callable(CallableType::MethodWrapperDunderGet(_)) => {
+                KnownClass::MethodWrapperType
+                    .to_instance(db)
+                    .member(db, name)
+            }
+            Type::Callable(CallableType::WrapperDescriptorDunderGet) => {
+                KnownClass::WrapperDescriptorType
+                    .to_instance(db)
+                    .member(db, name)
+            }
+
             Type::Instance(..)
             | Type::BooleanLiteral(..)
             | Type::IntLiteral(..)
@@ -1504,8 +1536,7 @@ impl<'db> Type<'db> {
             | Type::SliceLiteral(..)
             | Type::Tuple(..)
             | Type::KnownInstance(..)
-            | Type::FunctionLiteral(..)
-            | Type::Callable(CallableType::FunctionTypeDunderGet(..)) => {
+            | Type::FunctionLiteral(..) => {
                 let member = self.static_member(db, name);
 
                 let instance = Some(*self);
@@ -1523,12 +1554,6 @@ impl<'db> Type<'db> {
             }
             Type::Union(union) => union.map_with_boundness(db, |elem| elem.member(db, name)),
             Type::Intersection(..) => Symbol::todo("Attribute access on `Intersection` types"),
-
-            Type::Callable(CallableType::BoundMethod(bound_method)) => match name {
-                "__self__" => Symbol::bound(bound_method.self_instance(db)),
-                "__func__" => Symbol::bound(Type::FunctionLiteral(bound_method.function(db))),
-                _ => KnownClass::MethodType.to_instance(db).member(db, name),
-            },
 
             Type::Dynamic(..)
             | Type::Never
@@ -1671,12 +1696,19 @@ impl<'db> Type<'db> {
                 );
                 CallOutcome::callable(binding)
             }
-            Type::Callable(CallableType::FunctionTypeDunderGet(function)) => {
+            Type::Callable(CallableType::MethodWrapperDunderGet(function)) => {
                 let return_ty = match arguments.first_argument() {
                     Some(ty) if ty.is_none(db) => Type::FunctionLiteral(function),
                     Some(instance) => Type::Callable(CallableType::BoundMethod(
                         BoundMethodType::new(db, function, instance),
                     )),
+                    _ => Type::unknown(),
+                };
+                CallOutcome::callable(CallBinding::from_return_type(return_ty))
+            }
+            Type::Callable(CallableType::WrapperDescriptorDunderGet) => {
+                let return_ty = match arguments.first_argument() {
+                    Some(f @ Type::FunctionLiteral(_)) => f,
                     _ => Type::unknown(),
                 };
                 CallOutcome::callable(CallBinding::from_return_type(return_ty))
@@ -2460,6 +2492,7 @@ pub enum KnownClass {
     FunctionType,
     MethodType,
     MethodWrapperType,
+    WrapperDescriptorType,
     // Typeshed
     NoneType, // Part of `types` for Python >= 3.10
     // Typing
@@ -2512,6 +2545,7 @@ impl<'db> KnownClass {
             Self::FunctionType => "FunctionType",
             Self::MethodType => "MethodType",
             Self::MethodWrapperType => "MethodWrapperType",
+            Self::WrapperDescriptorType => "WrapperDescriptorType",
             Self::NoneType => "NoneType",
             Self::SpecialForm => "_SpecialForm",
             Self::TypeVar => "TypeVar",
@@ -2595,7 +2629,8 @@ impl<'db> KnownClass {
             | Self::ModuleType
             | Self::FunctionType
             | Self::MethodType
-            | Self::MethodWrapperType => KnownModule::Types,
+            | Self::MethodWrapperType
+            | Self::WrapperDescriptorType => KnownModule::Types,
             Self::NoneType => KnownModule::Typeshed,
             Self::SpecialForm | Self::TypeVar | Self::TypeAliasType | Self::StdlibAlias => {
                 KnownModule::Typing
@@ -2663,6 +2698,7 @@ impl<'db> KnownClass {
             | Self::FunctionType
             | Self::MethodType
             | Self::MethodWrapperType
+            | Self::WrapperDescriptorType
             | Self::SpecialForm
             | Self::ChainMap
             | Self::Counter
@@ -2705,6 +2741,7 @@ impl<'db> KnownClass {
             "FunctionType" => Self::FunctionType,
             "MethodType" => Self::MethodType,
             "MethodWrapperType" => Self::MethodWrapperType,
+            "WrapperDescriptorType" => Self::WrapperDescriptorType,
             "TypeAliasType" => Self::TypeAliasType,
             "ChainMap" => Self::ChainMap,
             "Counter" => Self::Counter,
@@ -2763,7 +2800,8 @@ impl<'db> KnownClass {
             | Self::BaseExceptionGroup
             | Self::FunctionType
             | Self::MethodType
-            | Self::MethodWrapperType => module == self.canonical_module(db),
+            | Self::MethodWrapperType
+            | Self::WrapperDescriptorType => module == self.canonical_module(db),
             Self::NoneType => matches!(module, KnownModule::Typeshed | KnownModule::Types),
             Self::SpecialForm | Self::TypeVar | Self::TypeAliasType | Self::NoDefaultType => {
                 matches!(module, KnownModule::Typing | KnownModule::TypingExtensions)
@@ -3534,6 +3572,8 @@ pub enum CallableType<'db> {
     // the bound instance when that type is displayed.
     BoundMethod(BoundMethodType<'db>),
 
+    WrapperDescriptorDunderGet,
+
     /// Represents the callable `f.__get__` where `f` is a function.
     // TODO: This could eventually be replaced by a more general `Callable` type that is
     // also able to represent overloads. It would need to represent the two overloads of
@@ -3542,7 +3582,7 @@ pub enum CallableType<'db> {
     //    * (None,   type)          ->   Literal[function_on_which_it_was_called]
     //    * (object, type | None)   ->   BoundMethod[instance, function_on_which_it_was_called]
     //
-    FunctionTypeDunderGet(FunctionType<'db>),
+    MethodWrapperDunderGet(FunctionType<'db>),
 }
 
 /// Describes whether the parameters in a function expect value expressions or type expressions.
@@ -4284,7 +4324,7 @@ impl<'db> ClassLiteralType<'db> {
         self.class.body_scope(db)
     }
 
-    fn member(self, db: &'db dyn Db, name: &str) -> Symbol<'db> {
+    fn static_member(self, db: &'db dyn Db, name: &str) -> Symbol<'db> {
         self.class.class_member(db, name)
     }
 }
