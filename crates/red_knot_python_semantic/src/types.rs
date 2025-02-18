@@ -3563,26 +3563,37 @@ pub struct BoundMethodType<'db> {
 /// A type that represents callable objects.
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, salsa::Update)]
 pub enum CallableType<'db> {
+    /// Represents a callable `instance.method` where `instance` is an instance of a class
+    /// and `method` is a method (of that class).
+    ///
     /// See [`BoundMethodType`] for more information.
-    // TODO: This could eventually be replaced by a more general `Callable` type, if we
-    // decide to bind the first argument of method calls early, i.e. if we have a method
-    // `def f(self, x: int) -> str`, and see it being called as `instance.f`, we could
-    // partially apply (and check) the `instance` argument against the `self` parameter,
-    // and return a `Callable[[int], str]`. One drawback would be that we could not show
-    // the bound instance when that type is displayed.
+    ///
+    /// TODO: This could eventually be replaced by a more general `Callable` type, if we
+    /// decide to bind the first argument of method calls early, i.e. if we have a method
+    /// `def f(self, x: int) -> str`, and see it being called as `instance.f`, we could
+    /// partially apply (and check) the `instance` argument against the `self` parameter,
+    /// and return a `Callable[[int], str]`. One drawback would be that we could not show
+    /// the bound instance when that type is displayed.
     BoundMethod(BoundMethodType<'db>),
 
-    WrapperDescriptorDunderGet,
-
     /// Represents the callable `f.__get__` where `f` is a function.
-    // TODO: This could eventually be replaced by a more general `Callable` type that is
-    // also able to represent overloads. It would need to represent the two overloads of
-    // `types.FunctionType.__get__`:
-    //
-    //    * (None,   type)          ->   Literal[function_on_which_it_was_called]
-    //    * (object, type | None)   ->   BoundMethod[instance, function_on_which_it_was_called]
-    //
+    ///
+    /// TODO: This could eventually be replaced by a more general `Callable` type that is
+    /// also able to represent overloads. It would need to represent the two overloads of
+    /// `types.FunctionType.__get__`:
+    ///
+    /// ```txt
+    ///  * (None,   type)         ->  Literal[function_on_which_it_was_called]
+    ///  * (object, type | None)  ->  BoundMethod[instance, function_on_which_it_was_called]
+    /// ```
     MethodWrapperDunderGet(FunctionType<'db>),
+
+    /// Represents the callable `FunctionType.__get__`.
+    ///
+    /// TODO: Similar to above, this could eventually be replaced by a generic `Callable`
+    /// type. We currently add this as a separate variant because `FunctionType.__get__`
+    /// is an overloaded method and we do not support `@overload` yet.
+    WrapperDescriptorDunderGet,
 }
 
 /// Describes whether the parameters in a function expect value expressions or type expressions.
